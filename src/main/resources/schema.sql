@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS customers (
+    id INT PRIMARY KEY,
+    balance DECIMAL(18, 2) DEFAULT 0.0
+);
