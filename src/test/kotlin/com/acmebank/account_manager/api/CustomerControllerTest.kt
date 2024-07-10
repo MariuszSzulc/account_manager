@@ -1,15 +1,22 @@
 package com.acmebank.account_manager.api
 
+import com.acmebank.account_manager.api.dto.TransferRequestDto
+import com.acmebank.account_manager.persistence.CustomersRepository
+import com.fasterxml.jackson.databind.ObjectMapper
+import org.assertj.core.api.Assertions.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import java.math.BigDecimal
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -19,11 +26,17 @@ class CustomerControllerTest {
     @Autowired
     private lateinit var mvc: MockMvc
 
+    @Autowired
+    private lateinit var objectMapper: ObjectMapper
+
+    @Autowired
+    private lateinit var customersRepository: CustomersRepository
+
     @Test
     fun `balance should return 200 for real customer`() {
         val customerId = 12345678
 
-        mvc.perform(MockMvcRequestBuilders.get("/app/customer/$customerId/balance"))
+        mvc.perform(get("/app/customer/$customerId/balance"))
             .andExpect(status().isOk)
             .andExpect(content().string(equalTo("1000000.00")))
     }
@@ -32,7 +45,76 @@ class CustomerControllerTest {
     fun `balance should return 404 when customer not found`() {
         val customerId = 1
 
-        mvc.perform(MockMvcRequestBuilders.get("/app/customer/$customerId/balance"))
+        mvc.perform(get("/app/customer/$customerId/balance"))
             .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `transfer request should move money around`() {
+        val customerId = 12345678
+        val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(128), recipientId = 88888888)
+
+        mvc.perform(
+            post("/app/customer/$customerId/transfer")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(transferRequest))
+        ).andExpect(status().isOk)
+
+        assertThat(customersRepository.findById(customerId)?.balance).isEqualTo(999_872.00)
+        assertThat(customersRepository.findById(transferRequest.recipientId)?.balance).isEqualTo(1_000_128.00)
+    }
+
+    @Test
+    fun `transfer request should handle fractions`() {
+        val customerId = 12345678
+        val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(128.75), recipientId = 88888888)
+
+        mvc.perform(
+            post("/app/customer/$customerId/transfer")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(transferRequest))
+        ).andExpect(status().isOk)
+
+        assertThat(customersRepository.findById(customerId)?.balance).isEqualTo(999_871.25)
+        assertThat(customersRepository.findById(transferRequest.recipientId)?.balance).isEqualTo(1_000_128.75)
+    }
+
+    @Test
+    fun `transfer request should fail over insufficient funds`() {
+        val customerId = 12345678
+        val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(2000000.00), recipientId = 88888888)
+
+        mvc.perform(
+            post("/app/customer/$customerId/transfer")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(transferRequest))
+        ).andExpect(status().isUnprocessableEntity)
+            .andExpect(content().string(equalTo("Insufficient funds")))
+    }
+
+    @Test
+    fun `transfer request amount must be positive`() {
+        val customerId = 12345678
+        val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(-15.00), recipientId = 88888888)
+
+        mvc.perform(
+            post("/app/customer/$customerId/transfer")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(transferRequest))
+        ).andExpect(status().isBadRequest)
+            .andExpect(content().string(equalTo("Invalid transfer amount")))
+    }
+
+    @Test
+    fun `transfer request recipient account must exist`() {
+        val customerId = 12345678
+        val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(10.00), recipientId = 666)
+
+        mvc.perform(
+            post("/app/customer/$customerId/transfer")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(transferRequest))
+        ).andExpect(status().isUnprocessableEntity)
+            .andExpect(content().string(equalTo("Unknown recipient")))
     }
 }
