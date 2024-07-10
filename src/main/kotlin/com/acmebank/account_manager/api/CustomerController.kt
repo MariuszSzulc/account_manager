@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import java.math.BigDecimal
 
 @RestController
 @RequestMapping("/app")
@@ -26,6 +27,27 @@ class CustomerController(
 
     @PostMapping("customer/{id}/transfer")
     fun initiateTransfer(@PathVariable("id") customerId: Int, @RequestBody requestBody: TransferRequestDto): String {
-        return "$customerId sends ${requestBody.amount} to ${requestBody.recipientId}"
+        // Validate
+        val clientRecord = (customersRepository.findById(customerId)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Customer $customerId not found"))
+
+        val recipientRecord = (customersRepository.findById(requestBody.recipientId)
+            ?: throw ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Unknown recipient"))
+
+        if (requestBody.amount < BigDecimal.ZERO) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid transfer amount")
+        }
+
+        if (clientRecord.balance < requestBody.amount) {
+            throw ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient funds")
+        }
+
+        // Execute the transfer
+        clientRecord.balance -= requestBody.amount
+        recipientRecord.balance += requestBody.amount
+        customersRepository.save(clientRecord)
+        customersRepository.save(recipientRecord)
+
+        return "OK"
     }
 }

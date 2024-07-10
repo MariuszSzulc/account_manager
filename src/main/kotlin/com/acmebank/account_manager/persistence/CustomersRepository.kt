@@ -10,9 +10,10 @@ class Customer(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     internal val id: Int,
-    internal val balance: BigDecimal
+    internal var balance: BigDecimal
 )
 
 interface CustomersRepository : Repository<Customer, Int> {
     fun findById(id: Int): Customer?
+    fun save(customer: Customer): Customer
 }
