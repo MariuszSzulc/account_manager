@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 
 @SpringBootTest
@@ -33,6 +34,7 @@ class CustomerControllerTest {
     private lateinit var customersRepository: CustomersRepository
 
     @Test
+    @Transactional
     fun `balance should return 200 for real customer`() {
         val customerId = 12345678
 
@@ -42,6 +44,7 @@ class CustomerControllerTest {
     }
 
     @Test
+    @Transactional
     fun `balance should return 404 when customer not found`() {
         val customerId = 1
 
@@ -50,6 +53,7 @@ class CustomerControllerTest {
     }
 
     @Test
+    @Transactional
     fun `transfer request should move money around`() {
         val customerId = 12345678
         val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(128), recipientId = 88888888)
@@ -65,6 +69,7 @@ class CustomerControllerTest {
     }
 
     @Test
+    @Transactional
     fun `transfer request should handle fractions`() {
         val customerId = 12345678
         val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(128.75), recipientId = 88888888)
@@ -80,6 +85,7 @@ class CustomerControllerTest {
     }
 
     @Test
+    @Transactional
     fun `transfer request should fail over insufficient funds`() {
         val customerId = 12345678
         val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(2000000.00), recipientId = 88888888)
@@ -92,6 +98,7 @@ class CustomerControllerTest {
     }
 
     @Test
+    @Transactional
     fun `transfer request amount must be positive`() {
         val customerId = 12345678
         val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(-15.00), recipientId = 88888888)
@@ -104,6 +111,7 @@ class CustomerControllerTest {
     }
 
     @Test
+    @Transactional
     fun `transfer request recipient account must exist`() {
         val customerId = 12345678
         val transferRequest = TransferRequestDto(amount = BigDecimal.valueOf(10.00), recipientId = 666)
